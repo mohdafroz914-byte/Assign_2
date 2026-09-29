@@ -18,22 +18,22 @@ steps:
   - bash: |
       set -e
       mkdir -p "$(Build.ArtifactStagingDirectory)/sca-reports"
+      cd "$(Build.SourcesDirectory)/sca-practice"
 
-      if [ -f package-lock.json ]; then
-        npm ci
-      else
-        npm install
-      fi
+      npm ci
 
       cp package.json package-lock.json "$(Build.ArtifactStagingDirectory)/sca-reports/"
       echo "##vso[task.setvariable variable=dependenciesReady]true"
-    displayName: 'Install application dependencies'
+    displayName: 'Install practice dependencies'
 
   - bash: |
       set +e
+      cd "$(Build.SourcesDirectory)/sca-practice"
+
       report="$(Build.ArtifactStagingDirectory)/sca-reports/npm-audit-report.json"
       npm audit --json > "$report"
       result=$?
+
       cat "$report"
       exit "$result"
     displayName: 'Scan with npm audit'
@@ -41,12 +41,16 @@ steps:
 
   - bash: |
       set +e
+      cd "$(Build.SourcesDirectory)/sca-practice"
+
       report="$(Build.ArtifactStagingDirectory)/sca-reports/retirejs-report.json"
       npx --yes --package retire@5.7.0 retire --path . --outputformat json --outputpath "$report"
       result=$?
+
       if [ -f "$report" ]; then
         cat "$report"
       fi
+
       exit "$result"
     displayName: 'Scan with Retire.js'
     condition: and(succeededOrFailed(), eq(variables['dependenciesReady'], 'true'))
@@ -55,7 +59,7 @@ steps:
     displayName: 'Scan with Mend Bolt'
     condition: and(succeededOrFailed(), eq(variables['dependenciesReady'], 'true'))
     inputs:
-      cwd: '$(System.DefaultWorkingDirectory)'
+      cwd: '$(Build.SourcesDirectory)/sca-practice'
 
   - task: PublishPipelineArtifact@1
     displayName: 'Publish SCA reports'
