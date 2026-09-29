@@ -1,19 +1,66 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
-- main
+  - main
 
 pool:
-  vmImage: ubuntu-latest
+  vmImage: ubuntu-24.04
+
+variables:
+  dependenciesReady: 'false'
 
 steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+  - checkout: self
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+  - task: UseNode@1
+    displayName: 'Set up Node.js'
+    inputs:
+      version: '22.x'
+
+  - bash: |
+      set -e
+      mkdir -p "$(Build.ArtifactStagingDirectory)/sca-reports"
+
+      if [ -f package-lock.json ]; then
+        npm ci
+      else
+        npm install
+      fi
+
+      cp package.json package-lock.json "$(Build.ArtifactStagingDirectory)/sca-reports/"
+      echo "##vso[task.setvariable variable=dependenciesReady]true"
+    displayName: 'Install application dependencies'
+
+  - bash: |
+      set +e
+      report="$(Build.ArtifactStagingDirectory)/sca-reports/npm-audit-report.json"
+      npm audit --json > "$report"
+      result=$?
+      cat "$report"
+      exit "$result"
+    displayName: 'Scan with npm audit'
+    condition: and(succeededOrFailed(), eq(variables['dependenciesReady'], 'true'))
+
+  - bash: |
+      set +e
+      report="$(Build.ArtifactStagingDirectory)/sca-reports/retirejs-report.json"
+      npx --yes --package retire@5.7.0 retire --path . --outputformat json --outputpath "$report"
+      result=$?
+      if [ -f "$report" ]; then
+        cat "$report"
+      fi
+      exit "$result"
+    displayName: 'Scan with Retire.js'
+    condition: and(succeededOrFailed(), eq(variables['dependenciesReady'], 'true'))
+
+  - task: WhiteSource@21
+    displayName: 'Scan with Mend Bolt'
+    condition: and(succeededOrFailed(), eq(variables['dependenciesReady'], 'true'))
+    inputs:
+      cwd: '$(System.DefaultWorkingDirectory)'
+
+  - task: PublishPipelineArtifact@1
+    displayName: 'Publish SCA reports'
+    condition: always()
+    inputs:
+      targetPath: '$(Build.ArtifactStagingDirectory)/sca-reports'
+      artifact: 'sca-reports'
+      publishLocation: 'pipeline'
