@@ -1,0 +1,28 @@
+name: Terraform Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  terrascan:
+    name: Terrascan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Scan Terraform with Terrascan
+        uses: tenable/terrascan-action@v1.1.3
+        with:
+          iac_type: terraform
+          iac_version: v14
+          iac_dir: .
+          policy_type: azure
+          only_warn: false
