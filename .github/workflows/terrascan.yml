@@ -11,21 +11,23 @@ permissions:
 
 jobs:
   terrascan:
-    name: Terrascan
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: List Terraform files
-        run: find . -type f -name '*.tf' -not -path '*/.terraform/*'
+      - name: Install Terrascan
+        run: |
+          curl -fsSL \
+            https://github.com/tenable/terrascan/releases/download/v1.19.9/terrascan_1.19.9_Linux_x86_64.tar.gz \
+            -o "$RUNNER_TEMP/terrascan.tar.gz"
+          tar -xzf "$RUNNER_TEMP/terrascan.tar.gz" \
+            -C "$RUNNER_TEMP" terrascan
+          sudo install "$RUNNER_TEMP/terrascan" /usr/local/bin/terrascan
 
-      - name: Scan Terraform across repository
-        uses: tenable/terrascan-action@main
-        with:
-          iac_type: terraform
-          iac_version: v14
-          iac_dir: .
-          policy_type: all
-          verbose: true
+      - name: Initialize policies
+        run: terrascan init
+
+      - name: Scan all Terraform scripts
+        run: terrascan scan -i terraform -t all -d . -v
