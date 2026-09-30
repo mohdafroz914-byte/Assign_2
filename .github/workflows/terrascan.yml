@@ -18,11 +18,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Scan Terraform with Terrascan
+      - name: List Terraform files
+        run: find . -type f -name '*.tf' -not -path '*/.terraform/*'
+
+      - name: Scan Terraform across repository
         uses: tenable/terrascan-action@main
         with:
           iac_type: terraform
           iac_version: v14
           iac_dir: .
-          policy_type: azure
-          only_warn: false
+          policy_type: all
+          verbose: true
